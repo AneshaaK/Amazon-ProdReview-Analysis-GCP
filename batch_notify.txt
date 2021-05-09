@@ -1,0 +1,4 @@
+#  Batch file notification
+# From the metadata, the bucket and file name details are extracted;file path is constructed and file is accessed
+
+gsutil notification create -t batch-topic -f json -e OBJECT_FINALIZE gs://data228-final-project
