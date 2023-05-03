@@ -28,6 +28,10 @@ options.view_as(SetupOptions).save_main_session = True
 topic_stream = "projects/data228-final-project/topics/streaming_data_in"
 topic_batch = "projects/data228-final-project/topics/batch_fileupload_notification"
 
+## Additional code to send errors to dead letter queue table
+# Define the dead letter queue table
+dead_letter_table = 'data228-final-project-312006:term_project.bqinsert_dead_letter_table'
+
 # pipeline begins here
 with beam.Pipeline(options=options) as pipeline:
     import csv
@@ -55,7 +59,12 @@ with beam.Pipeline(options=options) as pipeline:
     # filter merged data and write to Bigquery
     (merged 
         | "Filter & Format data" >> beam.Map(lambda x: {"id":x[0], "dateAdded": x[1].replace('Z', ''), "dateUpdated": x[2].replace('Z', ''), "name": x[3], "asins": x[4], "brand": x[5], "categories": x[6], "primaryCategories": x[7], "reviews_date": x[10].replace('Z', ''), "reviews_rating": x[16], "reviews_text": x[17], "reviews_title": x[18], "reviews_username": x[19], "reviews_users_gender": x[20], "shipping": x[21]})
-        | "Write to BQ" >> beam.io.WriteToBigQuery("data228-final-project-312006:term_project.amazon_data_raw",write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND)
+        | "Write to BQ" >> beam.io.WriteToBigQuery("data228-final-project-312006:term_project.amazon_data_raw",
+                                                   create_disposition=beam.io.BigQueryDisposition.CREATE_IF_NEEDED, 
+                                                   write_disposition=beam.io.BigQueryDisposition.WRITE_APPEND,
+                                                   retry_strategy=beam.io.gcp.bigquery_tools.RetryStrategy.RETRY_ON_TRANSIENT_ERROR, ## Additional code to retry
+                                                   dead_letter_table=dead_letter_table ## Additional code to send errors to dead letter queue table
+                                                  )
     )
     
     DataflowRunner().run_pipeline(pipeline, options=options).wait_until_finish()
